@@ -1,5 +1,5 @@
 opencv-python
-mediapipe==0.8.9.1
+mediapipe
 numpy
 pygame
 scipy
