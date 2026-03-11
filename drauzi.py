@@ -7,11 +7,39 @@ import tkinter as tk
 from datetime import datetime, timedelta
 from tkinter import messagebox, ttk
 
+print("STARTUP: imports beginning...", flush=True)
+
+print("  importing cv2...", flush=True)
 import cv2
-import mediapipe as mp
+print("  cv2 imported", flush=True)
+
+print("  importing mediapipe...", flush=True)
+try:
+    import mediapipe as mp
+    print("  mediapipe imported", flush=True)
+except Exception as e:
+    print(f"  ERROR importing mediapipe: {e}", flush=True)
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+
+print("  importing numpy...", flush=True)
 import numpy as np
+print("  numpy imported", flush=True)
+
+print("  importing pygame...", flush=True)
+import pygame
+print("  pygame imported", flush=True)
+
+print("  importing pygame.mixer...", flush=True)
 from pygame import mixer
+print("  mixer imported", flush=True)
+
+print("  importing scipy...", flush=True)
 from scipy.spatial import distance
+print("  scipy imported", flush=True)
+
+print("STARTUP: modules imported successfully", flush=True)
 
 # Import UI components with error handling
 try:
@@ -26,83 +54,36 @@ except ImportError as e:
 
 class EnhancedDrowsinessDetector:
     def __init__(self, root):
+        print("Initializing EnhancedDrowsinessDetector...", flush=True)
         self.root = root
-        self.root.withdraw()  # Hide main window initially
-        self.show_splash_screen()  # Show splash screen
+        # We no longer use the splash screen; show the main window immediately
+        # self.root.withdraw()  # Hide main window initially
+        # print("Showing splash screen...", flush=True)
+        # self.show_splash_screen()  # Show splash screen
+        self.root.deiconify()
+        print("Setting up window properties...", flush=True)
         self.setup_window_properties()
-        self.setup_detection()
+        print("(Deferred) setting up detection will occur when detection starts", flush=True)
+        self.detection_initialized = False
+        print("Setting up data tracking...", flush=True)
         self.setup_data_tracking()
+        print("Setting up UI...", flush=True)
         self.setup_ui()
+        print("Initialization complete!", flush=True)
 
-    def show_splash_screen(self):
-        """Display a splash screen with fade-in effect and loading animation"""
-        self.splash = tk.Toplevel()
-        self.splash.title("Loading...")
-        self.splash.configure(bg='#ffffff')
-        self.splash.overrideredirect(True)  # Remove window decorations
-        self.splash.attributes('-topmost', True)  # Keep on top
+    # splash screen code removed because it was preventing the main window from appearing
+    # def show_splash_screen(self):
+    #     """Display a splash screen with fade-in effect and loading animation"""
+    #     ... (splash screen disabled) ...
 
-        # Center splash screen
-        screen_width = self.splash.winfo_screenwidth()
-        screen_height = self.splash.winfo_screenheight()
-        splash_width = 400
-        splash_height = 250
-        x = (screen_width - splash_width) // 2
-        y = (screen_height - splash_height) // 2
-        self.splash.geometry(f"{splash_width}x{splash_height}+{x}+{y}")
-
-        # Splash screen content
-        splash_frame = ModernFrame(self.splash, gradient_colors=['#ffffff', '#f0f0f0'])
-        splash_frame.pack(fill='both', expand=True)
-
-        tk.Label(
-            splash_frame,
-            text="🧠 AI Drowsiness Detection",
-            font=('Segoe UI', 18, 'bold'),
-            fg='#25D366',  # WhatsApp green
-            bg='#ffffff'
-        ).pack(pady=30)
-
-        tk.Label(
-            splash_frame,
-            text="Initializing System...",
-            font=('Segoe UI', 12),
-            fg='#333333',
-            bg='#ffffff'
-        ).pack(pady=10)
-
-        # Loading animation (progress bar)
-        loading_bar = AnimatedProgressBar(
-            splash_frame,
-            label="Loading",
-            color='#25D366'
-        )
-        loading_bar.pack(fill='x', padx=20, pady=20)
-
-        # Animate progress bar
-        def animate_loading():
-            for i in range(0, 100, 5):
-                loading_bar.set_value(i)
-                self.splash.update()
-                time.sleep(0.15)
-
-        # Fade-in effect
-        def fade_in():
-            alpha = 0.0
-            self.splash.attributes('-alpha', alpha)
-            while alpha < 1.0:
-                alpha += 0.1
-                self.splash.attributes('-alpha', alpha)
-                self.splash.update()
-                time.sleep(0.05)
-
-        # Run animations and close splash
-        threading.Thread(target=lambda: [fade_in(), animate_loading(), self.close_splash()], daemon=True).start()
 
     def close_splash(self):
         """Close splash screen and show main window"""
+        print("Closing splash screen...", flush=True)
         self.splash.destroy()
+        print("Showing main window...", flush=True)
         self.root.deiconify()  # Show main window
+        print("Main window should now be visible", flush=True)
 
     def setup_window_properties(self):
         """Configure window properties for responsiveness"""
@@ -462,7 +443,8 @@ class EnhancedDrowsinessDetector:
         """Initialize detection components with moderate sensitivity"""
         try:
             mixer.init()
-        except pygame.error as e:
+        except Exception as e:
+            # audio initialization may fail if no working audio device is available
             print(f"Audio initialization failed: {e}")
             print("Continuing without audio alerts...")
             self.audio_disabled = True
@@ -475,7 +457,6 @@ class EnhancedDrowsinessDetector:
 
         if not os.path.exists(self.audio_file):
             try:
-                import pygame
                 pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
                 sound = pygame.mixer.Sound(buffer=np.sin(2 * np.pi * np.arange(22050) * 440 / 22050).astype(np.float32))
                 sound.save(self.audio_file)
@@ -556,36 +537,84 @@ class EnhancedDrowsinessDetector:
         if self.detection_active:
             return
 
+        # ensure detection components are initialized lazily
+        if not getattr(self, 'detection_initialized', False):
+            print("Initializing detection components before starting...", flush=True)
+            try:
+                self.setup_detection()
+            except Exception as e:
+                print(f"ERROR during setup_detection: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                messagebox.showerror("Initialization Error", f"Failed to initialize detection components: {e}")
+                return
+            self.detection_initialized = True
+
         try:
-            print("Attempting to open camera (index 0)...")
-            self.cap = cv2.VideoCapture(0)
-            if not self.cap.isOpened():
-                print("ERROR: Could not open camera. Trying alternative camera index...")
-                # Try other camera indices
-                for i in range(1, 5):
-                    print(f"Trying camera index {i}...")
-                    self.cap = cv2.VideoCapture(i)
-                    if self.cap.isOpened():
-                        print(f"Camera found at index {i}")
+            print("Attempting to open camera...", flush=True)
+            
+            # Try simple camera open first
+            self.cap = None
+            for idx in range(5):
+                print(f"Trying camera index {idx}...", flush=True)
+                try:
+                    cap_candidate = cv2.VideoCapture(idx)
+                    if cap_candidate.isOpened():
+                        print(f"Camera opened at index {idx}", flush=True)
+                        self.cap = cap_candidate
                         break
-                else:
-                    messagebox.showerror("Error", "Could not open camera. Please check if your webcam is connected and not in use by another application.")
-                    print("No camera found on any index")
+                    else:
+                        cap_candidate.release()
+                except Exception as e:
+                    print(f"Failed at index {idx}: {e}", flush=True)
+            
+            # If no camera found, offer demo mode
+            if self.cap is None or not self.cap.isOpened():
+                print("\nNo camera found. Offering demo mode...", flush=True)
+                result = messagebox.askyesno(
+                    "Camera Offline",
+                    "Camera could not be accessed.\n\n"
+                    "Would you like to run in DEMO MODE?\n"
+                    "(Demo mode simulates alerts without actual camera input)\n\n"
+                    "Yes = Continue in demo mode\n"
+                    "No = Cancel"
+                )
+                if not result:
+                    print("User cancelled. Stopping detection.", flush=True)
                     return
-
-            print("Camera opened successfully")
-
+                
+                # Run in demo mode
+                print("Starting in demo mode...", flush=True)
+                self.detection_active = True
+                self.session_start_time = datetime.now()
+                self.drowsiness_events = []
+                self.alert_history_data = []
+                
+                self.camera_status.set_status("offline (demo)")
+                self.detection_status.set_status("online")
+                
+                self.video_label.configure(text="📹 DEMO MODE (No Camera)")
+                
+                # Start demo thread instead
+                self.detection_thread = threading.Thread(target=self.demo_loop, daemon=True)
+                self.detection_thread.start()
+                self.ui_update_thread = threading.Thread(target=self.update_ui_loop, daemon=True)
+                self.ui_update_thread.start()
+                return
+            
+            # Camera found - proceed normally
+            print("Camera opened successfully", flush=True)
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
             if os.path.exists(self.audio_file):
                 try:
                     mixer.music.load(self.audio_file)
-                    print(f"Audio file loaded successfully: {self.audio_file}")
+                    print(f"Audio file loaded successfully: {self.audio_file}", flush=True)
                 except Exception as e:
-                    print(f"Audio loading warning: {e}")
+                    print(f"Audio loading warning: {e}", flush=True)
             else:
-                print(f"Audio file not found: {self.audio_file}")
+                print(f"Audio file not found: {self.audio_file}", flush=True)
 
             self.detection_active = True
             self.session_start_time = datetime.now()
@@ -602,6 +631,7 @@ class EnhancedDrowsinessDetector:
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to start detection: {str(e)}")
+            print(f"Exception in start_detection: {e}", flush=True)
 
     def stop_detection(self):
         """Stop the drowsiness detection"""
@@ -626,20 +656,78 @@ class EnhancedDrowsinessDetector:
             image=""
         )
 
+    def demo_loop(self):
+        """Simulate drowsiness detection without a camera (for testing)"""
+        try:
+            import random
+            blink_count = 0
+            alert_threshold = 3
+            
+            while self.detection_active:
+                # Simulate random blinks/yawns
+                if random.random() < 0.1:  # 10% chance each iteration
+                    blink_count += 1
+                    if blink_count >= alert_threshold:
+                        # Simulate an alert
+                        current_time = datetime.now()
+                        self.drowsiness_events.append(DrowsinessEvent(
+                            timestamp=current_time,
+                            ear_value=0.15,  # Simulated closed eyes
+                            event_type="demo_drowsiness",
+                            duration_seconds=0.5
+                        ))
+                        self.alert_history_data.append({
+                            'time': current_time.strftime("%H:%M:%S"),
+                            'type': 'Demo Alert',
+                            'ear': 0.15
+                        })
+                        
+                        # Play alert if available
+                        if not self.audio_disabled and os.path.exists(self.audio_file):
+                            try:
+                                if not self.is_alert_playing:
+                                    mixer.music.play(-1)
+                                    self.is_alert_playing = True
+                            except Exception as e:
+                                print(f"Demo: could not play alert: {e}")
+                        
+                        blink_count = 0
+                
+                # Update UI indicators
+                self.current_ear = 0.3 + random.random() * 0.2
+                self.current_mar = 0.5 + random.random() * 0.2
+                self.alertness_level = max(0, min(100, 100 - (blink_count * 20)))
+                
+                time.sleep(0.5)
+        except Exception as e:
+            print(f"Exception in demo_loop: {e}", flush=True)
+            self.detection_active = False
+            self.camera_status.set_status("offline")
+            self.detection_status.set_status("offline")
+
     def detection_loop(self):
         """Main detection loop running in separate thread"""
-        while self.detection_active and self.cap:
-            ret, frame = self.cap.read()
-            if not ret:
-                break
+        try:
+            while self.detection_active and self.cap:
+                ret, frame = self.cap.read()
+                if not ret:
+                    break
 
-            # Convert to RGB for processing
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            rgb_frame.flags.writeable = False
+                # Convert to RGB for processing
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                rgb_frame.flags.writeable = False
 
-            # Process frame for face mesh
-            results = self.face_mesh.process(rgb_frame)
-
+                # Process frame for face mesh
+                results = self.face_mesh.process(rgb_frame)
+        except Exception as e:
+            print(f"Exception in detection_loop: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            # stop detection to avoid repeated errors
+            self.detection_active = False
+            self.camera_status.set_status("offline")
+            self.detection_status.set_status("offline")
+            messagebox.showerror("Detection Error", f"An error occurred during detection: {e}")
             # Default values
             ear = 0.0
             mar = 0.0
@@ -897,10 +985,43 @@ class EnhancedDrowsinessDetector:
         self.root.destroy()
 
 def main():
-    root = tk.Tk()
-    app = EnhancedDrowsinessDetector(root)
-    root.protocol("WM_DELETE_WINDOW", app.on_closing)
-    root.mainloop()
+    print("Starting application...", flush=True)
+    try:
+        root = tk.Tk()
+        print("Tkinter window created", flush=True)
+        app = EnhancedDrowsinessDetector(root)
+        print("App initialized, showing window...", flush=True)
+        root.protocol("WM_DELETE_WINDOW", app.on_closing)
+        try:
+            root.mainloop()
+        except Exception as e2:
+            # On Windows running from a closed console you can get WinError 6
+            # (invalid handle) when the underlying Tk event loop tries to write to
+            # stdout/stderr.  Treat this as a normal shutdown instead of an error.
+            if isinstance(e2, OSError) and getattr(e2, 'winerror', None) == 6:
+                print(
+                    "mainloop terminated due to invalid handle (probably the console was closed)",
+                    flush=True
+                )
+            else:
+                print(f"ERROR in mainloop: {e2}", flush=True)
+                import traceback as _tb
+                _tb.print_exc()
+        finally:
+            print("mainloop finished", flush=True)
+        print("Main loop exited", flush=True)
+    except Exception as e:
+        # Sometimes when the app is terminated by closing the console on Windows
+        # Tkinter may raise "[WinError 6] The handle is invalid".  The inner
+        # handler should catch this, but in case it propagates we just ignore it
+        # so the program exits cleanly.
+        if isinstance(e, OSError) and getattr(e, 'winerror', None) == 6:
+            print("Exiting due to invalid handle (WinError 6); this is harmless.", flush=True)
+        else:
+            print(f"ERROR: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
 
 if __name__ == "__main__":
+    print("STARTUP: __main__ block reached, calling main()...", flush=True)
     main()

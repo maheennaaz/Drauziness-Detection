@@ -1,0 +1,7 @@
+opencv-python
+mediapipe==0.8.9.1
+numpy
+pygame
+scipy
+pillow
+pandas
