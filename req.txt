@@ -1,0 +1,8 @@
+opencv-python
+mediapipe
+numpy
+pygame
+scipy
+pillow
+pandas
+&"C:\Users\moham\Downloads\drauzy-main\.venv\Scripts\python.exe" "c:\Users\moham\Downloads\drauzy-main\drauzy-main\drauzi.py"
